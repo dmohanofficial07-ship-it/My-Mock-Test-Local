@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f6f8" />
+    <title>Practice Room — Mock Test</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Practice Room home" id="brand-home">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <span>Practice Room</span>
+        </a>
+        <div class="topbar-right">
+          <span class="local-pill"><span class="local-dot"></span> Saved on this device</span>
+          <button class="button button-secondary button-small theme-toggle" id="theme-toggle" type="button" aria-pressed="false">☾ <span>Dark mode</span></button>
+          <button class="button button-quiet button-small" id="reset-all" type="button" title="Clear this browser's saved data">Reset</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="setup-view" class="view setup-view">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">YOUR PERSONAL MOCK TEST</p>
+              <h1>Set up your practice</h1>
+              <p class="subheading">Add questions, tune the rules, then start whenever you’re ready.</p>
+            </div>
+            <button class="button button-primary start-button" id="start-test" type="button">
+              Start mock test <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <div class="setup-grid">
+            <div class="main-column">
+              <section class="card settings-card" aria-labelledby="settings-title">
+                <div class="card-heading">
+                  <div class="section-index">01</div>
+                  <div>
+                    <h2 id="settings-title">Test settings</h2>
+                    <p>Choose the title, time limit, and scoring rules.</p>
+                  </div>
+                </div>
+                <div class="settings-fields">
+                  <label class="field field-wide">
+                    <span>Test name</span>
+                    <input id="test-title" type="text" maxlength="80" placeholder="e.g. Biology — Chapter 4" />
+                  </label>
+                  <label class="field">
+                    <span>Time limit</span>
+                    <span class="input-suffix"><input id="duration" type="number" min="1" max="600" step="1" /><span>min</span></span>
+                  </label>
+                  <label class="field">
+                    <span>Correct answer</span>
+                    <span class="input-prefix"><span>+</span><input id="correct-marks" type="number" min="0" max="1000" step="0.25" /></span>
+                  </label>
+                  <label class="field">
+                    <span>Wrong answer penalty</span>
+                    <span class="input-prefix"><span>−</span><input id="wrong-marks" type="number" min="0" max="1000" step="0.25" /></span>
+                  </label>
+                </div>
+                <div class="settings-note"><span aria-hidden="true">ⓘ</span> Your score is calculated as correct answers × marks, minus wrong answers × penalty. Unanswered questions score 0.</div>
+              </section>
+
+              <section class="card questions-card" aria-labelledby="questions-title">
+                <div class="card-heading card-heading-spread">
+                  <div class="heading-cluster">
+                    <div class="section-index">02</div>
+                    <div>
+                      <h2 id="questions-title">Question bank <span class="count-badge" id="question-count">0</span></h2>
+                      <p>Organize your questions into sections.</p>
+                    </div>
+                  </div>
+                  <button class="button button-secondary button-small" id="add-question-toggle" type="button">＋ Add question</button>
+                </div>
+
+                <div class="import-panel">
+                  <div class="import-copy">
+                    <span class="import-icon" aria-hidden="true">↥</span>
+                    <div>
+                      <strong>Import a question file</strong>
+                      <p>Choose a JSON file. You can append it or replace your question bank.</p>
+                    </div>
+                  </div>
+                  <div class="import-actions">
+                    <select id="import-mode" aria-label="Import mode">
+                      <option value="replace">Replace bank</option>
+                      <option value="append">Append questions</option>
+                    </select>
+                    <label class="button button-secondary button-small upload-button" for="question-file">Choose JSON</label>
+                    <input id="question-file" type="file" accept=".json,application/json" />
+                  </div>
+                  <details class="format-details">
+                    <summary>View the JSON format</summary>
+                    <pre id="json-example"></pre>
+                  </details>
+                </div>
+
+                <div class="question-editor hidden" id="question-editor">
+                  <div class="editor-title-row">
+                    <div>
+                      <strong id="editor-heading">Add a question</strong>
+                      <p>Options and the correct answer are saved with this question.</p>
+                    </div>
+                    <button class="icon-button" id="close-editor" type="button" aria-label="Close editor">×</button>
+                  </div>
+                  <form id="question-form">
+                    <input id="editing-id" type="hidden" />
+                    <div class="editor-fields">
+                      <label class="field"><span>Section</span><input id="question-section" type="text" maxlength="50" required placeholder="e.g. Quantitative reasoning" list="section-suggestions" /></label>
+                      <datalist id="section-suggestions"></datalist>
+                      <label class="field field-wide"><span>Question</span><textarea id="question-prompt" rows="3" required placeholder="Write your question…"></textarea></label>
+                    </div>
+                    <div class="options-heading"><span>Answer options</span><span>Pick the correct answer</span></div>
+                    <div id="option-editor-list" class="option-editor-list"></div>
+                    <div class="editor-footer">
+                      <button class="text-button" id="add-option" type="button">＋ Add option</button>
+                      <label class="field explanation-field"><span>Explanation <em>optional</em></span><input id="question-explanation" type="text" maxlength="500" placeholder="Why is this the correct answer?" /></label>
+                    </div>
+                    <div class="form-actions">
+                      <button class="button button-quiet button-small" id="cancel-question" type="button">Cancel</button>
+                      <button class="button button-primary button-small" type="submit" id="save-question">Save question</button>
+                    </div>
+                  </form>
+                </div>
+
+                <div class="empty-bank" id="empty-bank">
+                  <div class="empty-icon" aria-hidden="true">◻</div>
+                  <strong>Your question bank is empty</strong>
+                  <p>Add a question or import a JSON file to get started.</p>
+                  <button class="text-button" id="load-sample" type="button">Load a sample set</button>
+                </div>
+                <div class="bank-content hidden" id="bank-content">
+                  <div class="subsection-heading">
+                    <div><strong>Sections</strong><span>Rename or reorder how they appear in your test.</span></div>
+                  </div>
+                  <div id="section-list" class="section-list"></div>
+                  <div class="subsection-heading question-list-heading">
+                    <div><strong>All questions</strong><span>Correct answers are kept in your local question bank.</span></div>
+                    <select id="question-filter" aria-label="Filter questions by section"><option value="all">All sections</option></select>
+                  </div>
+                  <div id="question-list" class="question-list"></div>
+                </div>
+              </section>
+            </div>
+
+            <aside class="side-column">
+              <section class="card overview-card">
+                <div class="card-heading">
+                  <div class="section-index section-index-muted">↗</div>
+                  <div><h2>Test overview</h2><p>Your current setup at a glance.</p></div>
+                </div>
+                <div class="overview-stats">
+                  <div><strong id="overview-questions">0</strong><span>Questions</span></div>
+                  <div><strong id="overview-sections">0</strong><span>Sections</span></div>
+                  <div><strong id="overview-time">30 min</strong><span>Time limit</span></div>
+                </div>
+                <div class="overview-rule"><span>Scoring</span><strong id="overview-scoring">+1 · −0.25</strong></div>
+              </section>
+              <section class="tip-card">
+                <span class="tip-spark" aria-hidden="true">✳</span>
+                <strong>Make it your own</strong>
+                <p>Everything is saved in this browser. Your question bank stays here between visits.</p>
+              </section>
+            </aside>
+          </div>
+          <div class="mobile-start-wrap"><button class="button button-primary" id="start-test-mobile" type="button">Start mock test <span aria-hidden="true">→</span></button></div>
+        </section>
+
+        <section id="exam-view" class="view exam-view hidden" aria-label="Mock test">
+          <div class="exam-topline">
+            <button class="back-link" id="leave-test" type="button"><span aria-hidden="true">←</span> Setup</button>
+            <div class="exam-heading"><span class="live-dot"></span><span id="exam-title">Mock test</span></div>
+            <div class="exam-actions"><div class="timer" id="timer" aria-live="off"><span class="timer-icon" aria-hidden="true">◷</span><span id="timer-value">30:00</span></div><button class="button button-primary button-small" id="submit-test" type="button">Submit test</button></div>
+          </div>
+          <div class="exam-progress"><div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div><div class="progress-caption"><span id="progress-text">0 of 0 answered</span><span id="exam-section-caption"></span></div></div>
+          <div class="exam-layout">
+            <aside class="exam-sidebar">
+              <div class="sidebar-label">SECTIONS</div>
+              <nav id="exam-section-nav" class="exam-section-nav" aria-label="Test sections"></nav>
+              <div class="question-map-head"><span>QUESTIONS</span><span id="map-count">0</span></div>
+              <div id="question-map" class="question-map"></div>
+              <div class="legend"><span><i class="legend-current"></i>Current</span><span><i class="legend-answered"></i>Answered</span><span><i class="legend-flagged"></i>Review</span></div>
+            </aside>
+            <div class="exam-main">
+              <div class="question-card" id="exam-question-card"></div>
+              <div class="question-controls"><button class="button button-secondary" id="previous-question" type="button">← Previous</button><button class="button button-quiet" id="flag-question" type="button">⚑ <span>Mark for review</span></button><button class="button button-primary" id="next-question" type="button">Next <span aria-hidden="true">→</span></button></div>
+              <p class="keyboard-hint">Your answers save automatically on this device.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="result-view" class="view result-view hidden" aria-label="Test results">
+          <div id="result-content"></div>
+        </section>
+      </main>
+      <footer class="app-footer"><span>Practice Room</span><span>Private by design · Your data stays in this browser</span></footer>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <dialog id="submit-dialog" class="confirm-dialog">
+      <form method="dialog">
+        <div class="dialog-icon">✓</div>
+        <h2>Submit your test?</h2>
+        <p id="submit-summary">You can’t change your answers after submitting.</p>
+        <div class="dialog-actions"><button class="button button-quiet" value="cancel">Keep working</button><button class="button button-primary" id="confirm-submit" value="submit">Submit test</button></div>
+      </form>
+    </dialog>
+    <script src="app.js"></script>
+  </body>
+</html>
