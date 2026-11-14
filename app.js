@@ -3,7 +3,7 @@
   const STORAGE_KEY = 'practice-room-v1';
   const ATTEMPT_KEY = 'practice-room-attempt-v1';
   const THEME_KEY = 'practice-room-theme-v1';
-  const defaults = { title: 'My mock test', duration: 30, correctMarks: 1, wrongMarks: 0.25, questions: [], sectionOrder: [] };
+  const defaults = { title: 'My mock test', duration: 30, correctMarks: 1, wrongMarks: 0.25, questions: [], sectionOrder: [], sectionTimes: {} };
   let data = loadData();
   let attempt = loadAttempt();
   let toastTimer;
@@ -18,10 +18,10 @@
     durationMinutes: 20,
     marks: { correct: 1, incorrect: 0.25 },
     sections: [
-      { name: 'Biology', questions: [
+      { name: 'Biology', timeLimitMinutes: 5, questions: [
         { question: 'Which part of a plant cell carries out photosynthesis?', options: ['Nucleus', 'Chloroplast', 'Ribosome', 'Vacuole'], answer: 'Chloroplast', explanation: 'Chloroplasts contain chlorophyll and are where photosynthesis takes place.' }
       ] },
-      { name: 'Chemistry', questions: [
+      { name: 'Chemistry', timeLimitMinutes: 5, questions: [
         { question: 'What is the chemical symbol for sodium?', options: ['So', 'S', 'Na', 'N'], answer: 'Na' }
       ] }
     ]
@@ -31,7 +31,7 @@
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (!saved || typeof saved !== 'object') return structuredClone(defaults);
-      return { ...structuredClone(defaults), ...saved, questions: Array.isArray(saved.questions) ? saved.questions : [], sectionOrder: Array.isArray(saved.sectionOrder) ? saved.sectionOrder : [] };
+      return { ...structuredClone(defaults), ...saved, questions: Array.isArray(saved.questions) ? saved.questions : [], sectionOrder: Array.isArray(saved.sectionOrder) ? saved.sectionOrder : [], sectionTimes: saved.sectionTimes && typeof saved.sectionTimes === 'object' && !Array.isArray(saved.sectionTimes) ? saved.sectionTimes : {} };
     } catch { return structuredClone(defaults); }
   }
   function loadAttempt() {
@@ -107,10 +107,14 @@
   }
   function updateOverview() {
     const sects = sectionsFrom();
+    const sectionTimeValues = sects.map((section) => Number(data.sectionTimes?.[section]));
+    const allSectionTimesSet = sects.length > 0 && sectionTimeValues.every((minutes) => Number.isInteger(minutes) && minutes >= 1 && minutes <= 600);
+    const someSectionTimesSet = sectionTimeValues.some((minutes) => Number.isFinite(minutes) && minutes > 0);
     $('question-count').textContent = data.questions.length;
     $('overview-questions').textContent = data.questions.length;
     $('overview-sections').textContent = sects.length;
-    $('overview-time').textContent = `${data.duration} min`;
+    $('overview-time').textContent = allSectionTimesSet ? `${sectionTimeValues.reduce((sum, minutes) => sum + minutes, 0)} min total` : someSectionTimesSet ? 'Finish setup' : `${data.duration} min`;
+    $('overview-time-label').textContent = allSectionTimesSet ? 'Section total' : someSectionTimesSet ? 'Timer mode' : 'Overall limit';
     $('overview-scoring').textContent = `+${numberText(data.correctMarks)} · −${numberText(data.wrongMarks)}`;
     $('start-test').disabled = data.questions.length === 0;
     $('start-test-mobile').disabled = data.questions.length === 0;
@@ -126,7 +130,7 @@
       <div class="section-row" data-section="${esc(section)}">
         <span class="section-number">${String(index + 1).padStart(2, '0')}</span>
         <input type="text" aria-label="Section name" value="${esc(section)}" maxlength="50" data-section-name="${esc(section)}" />
-        <div class="section-actions"><span class="section-count">${counts[section]} ${counts[section] === 1 ? 'question' : 'questions'}</span><button type="button" data-move-section="up" data-section="${esc(section)}" title="Move up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move-section="down" data-section="${esc(section)}" title="Move down" ${index === sections.length - 1 ? 'disabled' : ''}>↓</button></div>
+        <div class="section-actions"><span class="section-count">${counts[section]} ${counts[section] === 1 ? 'question' : 'questions'}</span><label class="section-time-field"><input type="number" min="1" max="600" step="1" placeholder="—" aria-label="${esc(section)} time limit in minutes" title="Time limit in minutes" data-section-time="${esc(section)}" value="${esc(data.sectionTimes?.[section] ?? '')}"><span>min</span></label><button type="button" data-move-section="up" data-section="${esc(section)}" title="Move up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move-section="down" data-section="${esc(section)}" title="Move down" ${index === sections.length - 1 ? 'disabled' : ''}>↓</button></div>
       </div>`).join('');
     const previous = $('question-filter').value;
     $('question-filter').innerHTML = '<option value="all">All sections</option>' + sections.map((section) => `<option value="${esc(section)}">${esc(section)}</option>`).join('');
@@ -186,12 +190,23 @@
     let duration = input.durationMinutes ?? input.duration;
     let correctMarks = input.marks?.correct ?? input.correctMarks;
     let wrongMarks = input.marks?.incorrect ?? input.marks?.wrong ?? input.wrongMarks ?? input.negativeMarks;
+    const suppliedSectionTimes = input.sectionTimes ?? input.sectionDurations ?? {};
+    if (!suppliedSectionTimes || typeof suppliedSectionTimes !== 'object' || Array.isArray(suppliedSectionTimes)) throw new Error('"sectionTimes" must be an object mapping section names to minutes.');
+    const sectionTimes = {};
+    const addSectionTime = (name, value) => {
+      if (value === undefined || value === null || value === '') return;
+      const minutes = Number(value);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) throw new Error(`The time limit for "${name}" must be a whole number from 1 to 600 minutes.`);
+      sectionTimes[name] = minutes;
+    };
+    Object.entries(suppliedSectionTimes).forEach(([name, value]) => addSectionTime(name, value));
     const raw = [];
     if (Array.isArray(input.questions)) {
       input.questions.forEach((q) => raw.push({ ...q, section: q.section || 'General' }));
     } else if (Array.isArray(input.sections)) {
       input.sections.forEach((section) => {
-        const name = typeof section === 'string' ? section : (section.name || section.title || 'General');
+        const name = String(typeof section === 'string' ? section : (section.name || section.title || 'General')).trim() || 'General';
+        if (typeof section === 'object' && section) addSectionTime(name, section.timeLimitMinutes ?? section.durationMinutes ?? section.timeMinutes ?? section.minutes);
         (section.questions || []).forEach((q) => raw.push({ ...q, section: q.section || name }));
       });
     } else throw new Error('Add a "questions" array or a "sections" array to your JSON file.');
@@ -212,18 +227,23 @@
       if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) throw new Error(`Question ${index + 1} needs a valid answer (option text, A–H, or a 0-based answer index).`);
       return { id: id(), section: String(q.section || 'General').trim() || 'General', prompt: prompt.trim(), options: options.map((o) => o.trim()), answerIndex, explanation: String(q.explanation || '').trim() };
     });
-    return { title, duration, correctMarks, wrongMarks, questions: normalized };
+    return { title, duration, correctMarks, wrongMarks, questions: normalized, sectionTimes };
   }
   function importQuestions(parsed) {
     const normalized = normalizeImport(parsed);
     const append = $('import-mode').value === 'append';
     data.questions = append ? [...data.questions, ...normalized.questions] : normalized.questions;
-    if (!append) data.sectionOrder = [];
+    if (!append) { data.sectionOrder = []; data.sectionTimes = {}; }
+    const importedSectionNames = new Set(normalized.questions.map((question) => question.section));
+    Object.entries(normalized.sectionTimes).forEach(([section, minutes]) => {
+      if (importedSectionNames.has(section)) data.sectionTimes[section] = minutes;
+    });
     if (normalized.title && !append) data.title = String(normalized.title).slice(0, 80);
     if (Number.isFinite(Number(normalized.duration)) && Number(normalized.duration) >= 1 && Number(normalized.duration) <= 600 && !append) data.duration = Number(normalized.duration);
     if (Number.isFinite(Number(normalized.correctMarks)) && Number(normalized.correctMarks) >= 0 && !append) data.correctMarks = Number(normalized.correctMarks);
     if (Number.isFinite(Number(normalized.wrongMarks)) && Number(normalized.wrongMarks) >= 0 && !append) data.wrongMarks = Number(normalized.wrongMarks);
     data.sectionOrder = sectionsFrom(data.questions, data.sectionOrder);
+    data.sectionTimes = Object.fromEntries(Object.entries(data.sectionTimes).filter(([section]) => data.questions.some((question) => question.section === section)));
     persist(); hydrateSettings();
     toast(`Imported ${normalized.questions.length} ${normalized.questions.length === 1 ? 'question' : 'questions'}.`);
   }
@@ -231,22 +251,41 @@
   function startTest() {
     saveSettings();
     if (!data.questions.length) { toast('Add or import questions before starting.'); return; }
-    if (attempt?.status === 'running' && attempt.deadline > Date.now()) {
-      const resume = confirm('A test is already in progress. Resume it? Choose Cancel to discard it and start over.');
-      if (resume) { enterExam(); return; }
-      attempt = null; persistAttempt();
+    if (attempt?.status === 'running') {
+      const activeDeadline = attempt.sectionTimed ? attempt.sectionDeadline : attempt.deadline;
+      if (activeDeadline > Date.now()) {
+        const resume = confirm('A test is already in progress. Resume it? Choose Cancel to discard it and start over.');
+        if (resume) { enterExam(); return; }
+        attempt = null; persistAttempt();
+      } else {
+        enterExam(); return;
+      }
+    }
+    const sections = sectionsFrom(data.questions, data.sectionOrder);
+    const configuredTimes = sections.map((section) => Number(data.sectionTimes?.[section]));
+    const hasSectionTimes = configuredTimes.some((minutes) => Number.isFinite(minutes) && minutes > 0);
+    const allSectionTimesSet = sections.length > 0 && configuredTimes.every((minutes) => Number.isInteger(minutes) && minutes >= 1 && minutes <= 600);
+    if (hasSectionTimes && !allSectionTimesSet) {
+      toast('Set a valid time for every section, or clear all section times to use the overall timer.'); return;
     }
     const questions = orderedQuestions().map((q) => ({ ...q, options: [...q.options] }));
+    const now = Date.now();
+    const sectionDurations = Object.fromEntries(sections.map((section, index) => [section, configuredTimes[index]]));
     attempt = {
       status: 'running', title: data.title, duration: data.duration, correctMarks: data.correctMarks, wrongMarks: data.wrongMarks,
-      questions, sections: sectionsFrom(questions, data.sectionOrder), answers: {}, flagged: [], currentQuestionId: questions[0].id,
-      startedAt: Date.now(), deadline: Date.now() + data.duration * 60_000
+      questions, sections, sectionTimed: allSectionTimesSet && hasSectionTimes, sectionDurations,
+      activeSectionIndex: 0, sectionDeadline: allSectionTimesSet && hasSectionTimes ? now + sectionDurations[sections[0]] * 60_000 : null,
+      answers: {}, flagged: [], currentQuestionId: questions[0].id,
+      startedAt: now, deadline: allSectionTimesSet && hasSectionTimes ? null : now + data.duration * 60_000
     };
     currentQuestionId = questions[0].id; persistAttempt(); enterExam();
   }
   function enterExam() {
     if (!attempt || attempt.status !== 'running') return;
-    if (attempt.deadline <= Date.now()) { finishTest(true); return; }
+    if (attempt.sectionTimed && attempt.sectionDeadline <= Date.now()) {
+      advanceSection(true, attempt.sectionDeadline);
+      if (!attempt || attempt.status !== 'running') return;
+    } else if (!attempt.sectionTimed && attempt.deadline <= Date.now()) { finishTest(true); return; }
     currentQuestionId = attempt.currentQuestionId || attempt.questions[0]?.id;
     $('exam-title').textContent = attempt.title;
     showView('exam'); renderExam(); updateTimer();
@@ -254,11 +293,37 @@
   }
   function updateTimer() {
     if (!attempt || attempt.status !== 'running') return;
-    const seconds = Math.max(0, Math.ceil((attempt.deadline - Date.now()) / 1000));
+    const deadline = attempt.sectionTimed ? attempt.sectionDeadline : attempt.deadline;
+    const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
     const min = Math.floor(seconds / 60); const sec = seconds % 60;
+    if (attempt.sectionTimed) {
+      const section = attempt.sections[attempt.activeSectionIndex];
+      $('timer-context').textContent = `${section} time`;
+      $('timer').title = `Time remaining in ${section}`;
+    } else {
+      $('timer-context').textContent = 'Time left';
+      $('timer').title = 'Overall time remaining';
+    }
     $('timer-value').textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     $('timer').classList.toggle('is-low', seconds <= 60);
-    if (seconds <= 0) { clearInterval(tickTimer); finishTest(true); }
+    if (seconds <= 0) {
+      if (attempt.sectionTimed) advanceSection(true, deadline);
+      else { clearInterval(tickTimer); finishTest(true); }
+    }
+  }
+  function advanceSection(auto = false, startedAt = Date.now()) {
+    if (!attempt || attempt.status !== 'running' || !attempt.sectionTimed) return;
+    const nextIndex = attempt.activeSectionIndex + 1;
+    if (nextIndex >= attempt.sections.length) { finishTest(auto); return; }
+    attempt.activeSectionIndex = nextIndex;
+    const section = attempt.sections[nextIndex];
+    const nextDeadline = startedAt + attempt.sectionDurations[section] * 60_000;
+    attempt.sectionDeadline = nextDeadline;
+    const firstQuestion = attempt.questions.find((question) => questionSection(question) === section);
+    if (firstQuestion) { attempt.currentQuestionId = firstQuestion.id; currentQuestionId = firstQuestion.id; }
+    persistAttempt();
+    if (nextDeadline <= Date.now()) { advanceSection(true, nextDeadline); return; }
+    renderExam(); updateTimer();
   }
   function activeQuestion() { return currentAttemptQuestions().find((q) => q.id === currentQuestionId) || currentAttemptQuestions()[0]; }
   function questionSection(q) { return q?.section || 'General'; }
@@ -271,7 +336,8 @@
     const activeSection = questionSection(q);
     $('exam-section-nav').innerHTML = sections.map((section) => {
       const count = attempt.questions.filter((item) => questionSection(item) === section).length;
-      return `<button class="exam-section-link ${section === activeSection ? 'active' : ''}" type="button" data-jump-section="${esc(section)}"><span>${esc(section)}</span><span>${count}</span></button>`;
+      const locked = attempt.sectionTimed && section !== activeSection;
+      return `<button class="exam-section-link ${section === activeSection ? 'active' : ''}" type="button" data-jump-section="${esc(section)}" ${locked ? 'disabled aria-label="Locked until the current section ends"' : ''}><span>${esc(section)}</span><span>${count}</span></button>`;
     }).join('');
     $('exam-section-caption').textContent = activeSection;
     const sectionQuestions = attempt.questions.filter((item) => questionSection(item) === activeSection);
@@ -297,8 +363,12 @@
     });
     $('progress-text').textContent = `${answeredCount()} of ${attempt.questions.length} answered`;
     $('progress-fill').style.width = `${(answeredCount() / attempt.questions.length) * 100}%`;
-    $('previous-question').disabled = index === 0;
-    $('next-question').innerHTML = index === attempt.questions.length - 1 ? 'Finish <span aria-hidden="true">→</span>' : 'Next <span aria-hidden="true">→</span>';
+    $('previous-question').disabled = attempt.sectionTimed ? sectionIndex === 0 : index === 0;
+    if (attempt.sectionTimed && sectionIndex === sectionQuestions.length - 1 && attempt.activeSectionIndex < sections.length - 1) {
+      $('next-question').innerHTML = 'Next section <span aria-hidden="true">→</span>';
+    } else if ((!attempt.sectionTimed && index === attempt.questions.length - 1) || (attempt.sectionTimed && sectionIndex === sectionQuestions.length - 1)) {
+      $('next-question').innerHTML = 'Finish <span aria-hidden="true">→</span>';
+    } else $('next-question').innerHTML = 'Next <span aria-hidden="true">→</span>';
     const flagged = attempt.flagged.includes(q.id);
     $('flag-question').classList.toggle('is-flagged', flagged);
     $('flag-question').querySelector('span').textContent = flagged ? 'Marked for review' : 'Mark for review';
@@ -307,11 +377,25 @@
   function moveRelative(delta) {
     const questions = currentAttemptQuestions();
     const index = questions.findIndex((q) => q.id === currentQuestionId);
+    if (attempt.sectionTimed) {
+      const current = questions[index];
+      const sectionQuestions = questions.filter((question) => questionSection(question) === questionSection(current));
+      const sectionIndex = sectionQuestions.findIndex((question) => question.id === currentQuestionId);
+      const next = sectionQuestions[sectionIndex + delta];
+      if (next) { currentQuestionId = next.id; attempt.currentQuestionId = next.id; persistAttempt(); renderExam(); return; }
+      if (delta < 0) return;
+      const unanswered = sectionQuestions.filter((question) => !Object.hasOwn(attempt.answers, question.id) || attempt.answers[question.id] === null).length;
+      if (unanswered && !confirm(`End this section early? ${unanswered} ${unanswered === 1 ? 'question is' : 'questions are'} still unanswered.`)) return;
+      if (attempt.activeSectionIndex < attempt.sections.length - 1) advanceSection(false);
+      else requestSubmit();
+      return;
+    }
     const next = questions[index + delta];
     if (next) { currentQuestionId = next.id; attempt.currentQuestionId = next.id; persistAttempt(); renderExam(); }
     else if (delta > 0) requestSubmit();
   }
   function jumpToSection(section) {
+    if (attempt.sectionTimed && section !== attempt.sections[attempt.activeSectionIndex]) return;
     const target = currentAttemptQuestions().find((q) => questionSection(q) === section);
     if (target) { currentQuestionId = target.id; attempt.currentQuestionId = target.id; persistAttempt(); renderExam(); }
   }
@@ -370,6 +454,7 @@
     newName = newName.trim(); if (!newName || oldName === newName) { renderBank(); return; }
     if (sectionsFrom().some((section) => section === newName)) { toast('That section name already exists.'); renderBank(); return; }
     data.questions.forEach((q) => { if (q.section === oldName) q.section = newName; });
+    if (Object.hasOwn(data.sectionTimes, oldName)) { data.sectionTimes[newName] = data.sectionTimes[oldName]; delete data.sectionTimes[oldName]; }
     data.sectionOrder = sectionsFrom(data.questions, data.sectionOrder.map((s) => s === oldName ? newName : s));
     persist(); renderBank();
   }
@@ -407,6 +492,18 @@
   $('question-filter').addEventListener('change', renderQuestionList);
   $('section-list').addEventListener('change', (event) => {
     const input = event.target.closest('[data-section-name]'); if (input) renameSection(input.dataset.sectionName, input.value);
+    const timeInput = event.target.closest('[data-section-time]');
+    if (timeInput) {
+      const section = timeInput.dataset.sectionTime;
+      const rawMinutes = timeInput.value.trim();
+      if (!rawMinutes) delete data.sectionTimes[section];
+      else {
+        const minutes = Number(rawMinutes);
+        if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) { toast('Section time must be a whole number from 1 to 600 minutes.'); renderBank(); return; }
+        data.sectionTimes[section] = minutes;
+      }
+      persist(); updateOverview();
+    }
   });
   $('section-list').addEventListener('click', (event) => {
     const button = event.target.closest('[data-move-section]'); if (button) moveSection(button.dataset.section, button.dataset.moveSection);
@@ -414,7 +511,7 @@
   $('question-list').addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-question]'); const remove = event.target.closest('[data-delete-question]');
     if (edit) { const question = data.questions.find((q) => q.id === edit.dataset.editQuestion); if (question) openEditor(question); }
-    if (remove && confirm('Remove this question from your bank?')) { data.questions = data.questions.filter((q) => q.id !== remove.dataset.deleteQuestion); data.sectionOrder = sectionsFrom(data.questions, data.sectionOrder); persist(); renderBank(); toast('Question removed.'); }
+    if (remove && confirm('Remove this question from your bank?')) { data.questions = data.questions.filter((q) => q.id !== remove.dataset.deleteQuestion); data.sectionOrder = sectionsFrom(data.questions, data.sectionOrder); data.sectionTimes = Object.fromEntries(Object.entries(data.sectionTimes).filter(([section]) => data.questions.some((question) => question.section === section))); persist(); renderBank(); toast('Question removed.'); }
   });
   $('load-sample').addEventListener('click', () => {
     try { importQuestions(example); } catch (error) { toast(error.message); }

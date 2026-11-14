@@ -16,6 +16,7 @@ Add questions from the setup screen, or import a `.json` file. JSON may organize
   "sections": [
     {
       "name": "Biology",
+      "timeLimitMinutes": 15,
       "questions": [
         {
           "question": "Which part of a plant cell carries out photosynthesis?",
@@ -29,8 +30,8 @@ Add questions from the setup screen, or import a `.json` file. JSON may organize
 }
 ```
 
-You can also use a flat `questions` array, with a `section` value on each question. The answer may be the exact option text, a letter (`A`–`H`), or an option index (0-based). `durationMinutes`, `marks.correct`, and `marks.incorrect` are optional. On import, choose whether to replace the current bank or append to it.
+You can also use a flat `questions` array, with a `section` value on each question, and a top-level `sectionTimes` object such as `{ "Biology": 15, "Chemistry": 20 }`. The answer may be the exact option text, a letter (`A`–`H`), or an option index (0-based). `durationMinutes`, `marks.correct`, and `marks.incorrect` are optional. Set `timeLimitMinutes` (or `durationMinutes`) on every section to enable sequential section timers; each section locks when its time ends, and the final section submits the test. Leave every section time blank to use the overall duration instead. Partial section timing is rejected at test start so sections can’t accidentally become untimed. On import, choose whether to replace the current bank or append to it.
 
 ## Take a test
 
-Set the test name, time limit, and points for correct and wrong answers. Sections can be renamed and reordered. During a test, switch sections, navigate with the question map, mark questions for review, and submit early. The test submits automatically when time expires. A running test resumes with its saved answers and remaining time if you reopen the page.
+Set the test name, overall time limit, and points for correct and wrong answers. Sections can be renamed, reordered, and given individual time limits. During an overall-timed test, switch sections freely. During a section-timed test, work through sections in order; earlier sections lock when their timers end, and you can move to the next section early after confirming. Navigate questions, mark them for review, or submit the whole test early. The test submits automatically when the final section or overall timer expires. A running test resumes with its saved answers and remaining time if you reopen the page.
