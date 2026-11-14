@@ -48,3 +48,5 @@ html[data-theme="dark"] .question-map-head,html[data-theme="dark"] .question-row
 html[data-theme="dark"] .mobile-start-wrap{background:linear-gradient(transparent,#171a20 24%)}
 .remove-option{width:30px;height:34px;font-size:22px}
 .section-actions button{min-width:28px;min-height:30px}.question-row-actions button{min-height:30px;padding:5px}
+.brand-mark{background:var(--green)}
+html[data-theme="dark"] .brand-mark{background:#287d58}
